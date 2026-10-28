@@ -1,0 +1,414 @@
+<title>Puzzle Test Kitchen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow column like a phone puzzle page; home = stacked game tiles, each game = full-width board with a sticky top bar */
+:root {
+  --bg: #f3f5f2;          /* pale sage paper */
+  --surface: #ffffff;
+  --ink: #18222b;         /* blue-black */
+  --muted: #5b6770;
+  --line: #d6ddd8;
+  --accent: #f2c230;      /* signal yellow, like a highlighter or road sign */
+  --accent-ink: #18222b;
+  --good: #2e8b57;
+  --good-soft: #d7efe0;
+  --bad: #c0392b;
+  --bad-soft: #f7dcd8;
+  --match: #c99a5b;       /* matchstick wood */
+  --match-head: #c0392b;
+  --slot: #c9d1cc;
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121a1f; --surface: #1b252c; --ink: #e8eee9; --muted: #9aa8a2; --line: #2d3a42;
+  --accent: #f2c230; --accent-ink: #18222b; --good: #5cc28a; --good-soft: #1d3a2b; --bad: #ef7b6c; --bad-soft: #43231f;
+  --match: #d9ad72; --match-head: #ef7b6c; --slot: #34434c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121a1f; --surface: #1b252c; --ink: #e8eee9; --muted: #9aa8a2; --line: #2d3a42;
+  --accent: #f2c230; --accent-ink: #18222b; --good: #5cc28a; --good-soft: #1d3a2b; --bad: #ef7b6c; --bad-soft: #43231f;
+  --match: #d9ad72; --match-head: #ef7b6c; --slot: #34434c; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 560px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; display: flex; flex-direction: column; gap: 20px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 2.3rem; font-weight: 800; line-height: 1.05; }
+h2 { font-size: 1.6rem; font-weight: 800; }
+h3 { font-size: 1.2rem; font-weight: 700; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.eyebrow { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn { border: 2px solid var(--ink); background: var(--surface); border-radius: 10px; padding: 10px 16px; font-weight: 700; min-height: 44px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-ink); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* home */
+.hero { display: flex; flex-direction: column; gap: 10px; }
+.hero h1 mark { background: var(--accent); color: var(--accent-ink); padding: 0 0.15em; border-radius: 4px; }
+.days { display: flex; gap: 6px; flex-wrap: wrap; }
+.day { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); font-family: var(--mono); font-weight: 500; }
+.day[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.games { display: flex; flex-direction: column; gap: 12px; }
+.tile { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+.tile:hover { border-color: var(--ink); }
+.tile .glyph { width: 56px; height: 56px; border-radius: 12px; background: var(--bg); display: grid; place-items: center; }
+.tile .txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tile .txt span { color: var(--muted); font-size: 0.95rem; }
+.status { font-family: var(--mono); font-size: 0.85rem; }
+.status.done { color: var(--good); }
+.note { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+
+/* game frame */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; align-items: center; gap: 10px; padding-block: 8px; border-bottom: 1px solid var(--line); }
+.bar .title { flex: 1; min-width: 0; font-family: var(--display); font-weight: 800; font-size: 1.25rem; }
+.bar .meta { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.back { border: 0; background: none; font-weight: 700; padding: 8px 4px; min-height: 44px; }
+.rules { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 0.97rem; }
+.result { background: var(--surface); border: 2px solid var(--ink); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.share-text { font-family: var(--mono); font-size: 0.95rem; white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; user-select: all; }
+.toast { font-size: 0.9rem; color: var(--good); min-height: 1.4em; }
+
+/* typo */
+.passage { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; font-size: 1.12rem; line-height: 2; }
+.w { border: 0; background: none; padding: 1px 2px; margin: 0 -1px; border-radius: 4px; font: inherit; }
+.w:hover { background: var(--bg); }
+.w.hit { background: var(--good-soft); color: var(--good); text-decoration: line-through; }
+.w.miss { background: var(--bad-soft); color: var(--bad); }
+.w.reveal { background: var(--accent); color: var(--accent-ink); }
+.fix { font-weight: 700; color: var(--good); margin-left: 3px; }
+.lives { letter-spacing: 2px; }
+
+/* places */
+.places { display: flex; flex-direction: column; gap: 10px; }
+.place { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; }
+.place .nm { font-family: var(--display); font-weight: 700; font-size: 1.25rem; min-width: 0; }
+.place .choice { display: flex; gap: 6px; }
+.place .choice button { border: 2px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 12px; min-height: 40px; font-weight: 700; }
+.place .choice button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.place .verdict { grid-column: 1 / -1; font-size: 0.92rem; }
+.place.right { border-color: var(--good); }
+.place.wrong { border-color: var(--bad); }
+.verdict .r { color: var(--good); font-weight: 700; }
+.verdict .x { color: var(--bad); font-weight: 700; }
+
+/* svg boards */
+.board { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.board svg { display: block; width: 100%; height: auto; max-width: 100%; touch-action: manipulation; }
+
+/* matchstick */
+.legend summary { cursor: pointer; font-weight: 700; }
+.legend-grid { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 10px; }
+.legend-grid figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.hand { font-weight: 700; min-height: 1.6em; }
+
+/* spoonerisms */
+.spoon { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.clue { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: baseline; }
+.clue .k { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.spoon input { font: inherit; font-family: var(--mono); text-transform: uppercase; border: 2px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); color: var(--ink); min-width: 0; flex: 1; }
+.spoon.solved { border-color: var(--good); }
+.spoon.failed { border-color: var(--bad); }
+.pair { font-family: var(--display); font-weight: 800; font-size: 1.2rem; }
+.pair .arrow { color: var(--muted); font-weight: 500; padding: 0 6px; }
+.dots { font-family: var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .w, .place, .spoon { transition: background .2s, border-color .2s; } }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+const DATA = {"typo": [{"text": "A village fete in North Yorkshire was brought to a halt on Saterday when a goat escaped from the petting area and ate the judges' notes for the cake competiton. Staff said the winner would be decided by a recount of crumbs. The goat has been named honourary champion and given a rosette.", "errors": {"Saterday": "Saturday", "competiton": "competition", "honourary": "honorary"}}, {"text": "Commuters in Leeds were suprised this morning when a brass band began playing on the platform during a signal failure. The musicians, who were on their way to a rehersal, said the delay seemed like a good oppurtunity. Several passengers joined in, and one guard was seen dancing near the ticket barrier.", "errors": {"suprised": "surprised", "rehersal": "rehearsal", "oppurtunity": "opportunity"}}, {"text": "A retired postman has finally returned a library book he borrowed in 1974, along with a handwritten appology and a box of chocolates. Librarians calulated the fine at more than two thousand pounds but agreed to cancel it. The book, a guide to keeping bees, was described as being in remarkabley good condition.", "errors": {"appology": "apology", "calulated": "calculated", "remarkabley": "remarkably"}}, {"text": "Residents of a Cornish fishing village have voted to name their new lifeboat after a seagull that has stolen chips from tourests for eleven years. Gerald the gull was not available for comment. The crew said the name was unusal but apropriate, given his talent for spotting anything edible from a great height.", "errors": {"tourests": "tourists", "unusal": "unusual", "apropriate": "appropriate"}}, {"text": "Sceintists have found that people who make their bed every morning are slightly more likely to describe themselves as calm. Critics pointed out that the survey was paid for by a company that sells duvets. The researchers insisted the results were independant and reccomended a tidy bedroom for everyone.", "errors": {"Sceintists": "Scientists", "independant": "independent", "reccomended": "recommended"}}, {"text": "A primary school in Bradford has broken a local record by building a tower of cardboard boxes taller than the head teacher's car. Pupils spent three weeks collecting the boxes from nearby shops and homes. The tower was carefuly taken down on Friday and every box will be recycled, acording to the school's enviroment club.", "errors": {"carefuly": "carefully", "enviroment": "environment", "acording": "according"}}, {"text": "Weather forcasters have said sorry after a computer glitch predicted snow in Cardiff for the whole of next August. The error was spotted by a schoolboy who wrote to complain that he had allready bought a sledge. A spokesman said the system had now been fixed and that the boy would recieve a letter of thanks.", "errors": {"forcasters": "forecasters", "allready": "already", "recieve": "receive"}}], "places": [[{"name": "Papplewick", "real": true, "where": "East Midlands, England"}, {"name": "Great Dithering", "real": false}, {"name": "Dawdle End", "real": false}, {"name": "Great Snoring", "real": true, "where": "Eastern, England"}, {"name": "Muddlecombe", "real": false}, {"name": "Wetwang", "real": true, "where": "Yorkshire and the Humber, England"}], [{"name": "Wheezewick", "real": false}, {"name": "Thrubley Parva", "real": false}, {"name": "Bedlam", "real": true, "where": "Yorkshire and the Humber, England"}, {"name": "Snoozeley", "real": false}, {"name": "Blubberhouses", "real": true, "where": "Yorkshire and the Humber, England"}, {"name": "Giggleswick", "real": true, "where": "Yorkshire and the Humber, England"}], [{"name": "Nether Wallop", "real": true, "where": "South East, England"}, {"name": "Zeal Monachorum", "real": true, "where": "South West, England"}, {"name": "Long Fumbling", "real": false}, {"name": "Lower Grumbleby", "real": false}, {"name": "Sniggleton", "real": false}, {"name": "Cold Christmas", "real": true, "where": "Eastern, England"}], [{"name": "Mousehole", "real": true, "where": "South West, England"}, {"name": "Westward Ho!", "real": true, "where": "South West, England"}, {"name": "Curry Mallet", "real": true, "where": "South West, England"}, {"name": "Bishops Dozing", "real": false}, {"name": "Kettlewhistle", "real": false}, {"name": "Pottering Magna", "real": false}], [{"name": "Barton in the Beans", "real": true, "where": "East Midlands, England"}, {"name": "Wyre Piddle", "real": true, "where": "West Midlands, England"}, {"name": "Christmas Common", "real": true, "where": "South East, England"}, {"name": "Slumberton", "real": false}, {"name": "Nether Snibbley", "real": false}, {"name": "Plodsworth", "real": false}], [{"name": "Gloomsbury", "real": false}, {"name": "Matching Tye", "real": true, "where": "Eastern, England"}, {"name": "Queen Camel", "real": true, "where": "South West, England"}, {"name": "Upper Fidgetts", "real": false}, {"name": "Messing", "real": true, "where": "Eastern, England"}, {"name": "Little Mumbling", "real": false}], [{"name": "Nempnett Thrubwell", "real": true, "where": "South West, England"}, {"name": "No Place", "real": true, "where": "North East, England"}, {"name": "Ugley", "real": true, "where": "Eastern, England"}, {"name": "Chewing Parva", "real": false}, {"name": "Wuffington", "real": false}, {"name": "Wobbleswick", "real": false}]], "route": {"cols": 6, "rows": 8, "days": [{"po": [0, 6], "houses": [[4, 7], [4, 3], [4, 5], [3, 4], [0, 3], [1, 0]], "best": 19.3565, "nearest": 25.275}, {"po": [3, 5], "houses": [[1, 4], [5, 6], [1, 5], [3, 2], [1, 3], [1, 7]], "best": 15.5952, "nearest": 17.6597}, {"po": [5, 7], "houses": [[3, 4], [2, 3], [5, 3], [1, 5], [2, 5], [1, 1], [4, 2]], "best": 19.0684, "nearest": 20.5963}, {"po": [2, 6], "houses": [[4, 1], [1, 5], [3, 3], [1, 1], [3, 4], [1, 2], [1, 4]], "best": 13.8863, "nearest": 15.7734}, {"po": [4, 1], "houses": [[3, 0], [3, 5], [3, 4], [2, 1], [4, 6], [0, 6], [1, 0]], "best": 19.7901, "nearest": 21.5321}, {"po": [5, 7], "houses": [[1, 6], [4, 1], [5, 4], [2, 5], [4, 5], [3, 4], [5, 6], [5, 2]], "best": 17.3565, "nearest": 21.8107}, {"po": [3, 7], "houses": [[4, 4], [1, 1], [2, 0], [0, 0], [5, 1], [2, 6], [1, 6], [3, 0]], "best": 20.3891, "nearest": 22.8623}]}, "match": {"font": {"A": "abcefg", "B": "cdefg", "C": "adef", "D": "bcdeg", "E": "adefg", "F": "aefg", "G": "acdef", "H": "bcefg", "I": "ef", "J": "bcde", "L": "def", "N": "ceg", "O": "abcdef", "P": "abefg", "R": "eg", "S": "acdfg", "T": "defg", "U": "bcdef", "Y": "bcdfg"}, "days": [["HAND", "BAND"], ["GOAT", "BOAT"], ["TOAST", "COAST"], ["CHAIR", "CHOIR"], ["DRAIN", "BRAIN"], ["BACON", "BATON"], ["CHIEF", "THIEF"]]}, "spoon": [[{"answer": "CAT FLAP", "clue": "Pet's door", "swapped": "FLAT CAP", "clue2": "Yorkshire headwear"}, {"answer": "FIRE WORK", "clue": "Bonfire Night rocket", "swapped": "WIRE FORK", "clue2": "Cutlery made of cable"}, {"answer": "LAME DUCK", "clue": "Politician on the way out", "swapped": "DAME LUCK", "clue2": "Lady Fortune, knighted"}], [{"answer": "PUNCH LINE", "clue": "End of a joke", "swapped": "LUNCH PINE", "clue2": "Long for a midday meal"}, {"answer": "WEDDING BELLS", "clue": "They ring for a bride", "swapped": "BEDDING WELLS", "clue2": "Springs in the flowerbeds"}, {"answer": "HAND BAG", "clue": "Purse", "swapped": "BAND HAG", "clue2": "Witch in a pop group"}], [{"answer": "TOAST RACK", "clue": "Breakfast-table holder", "swapped": "ROAST TACK", "clue2": "Mock a drawing pin"}, {"answer": "DOG HOUSE", "clue": "Kennel, or where you are in trouble", "swapped": "HOG DOUSE", "clue2": "Soak a pig"}, {"answer": "LUCKY DIP", "clue": "Fairground prize grab", "swapped": "DUCKY LIP", "clue2": "Sweetheart's pout"}], [{"answer": "PACK OF LIES", "clue": "Complete fabrication", "swapped": "LACK OF PIES", "clue2": "Bakery shortage"}, {"answer": "CHIP SHOP", "clue": "Chippy", "swapped": "SHIP CHOP", "clue2": "Post a pork cutlet"}, {"answer": "FOOT BALL", "clue": "Saturday's game", "swapped": "BOOT FALL", "clue2": "A dropped wellington"}], [{"answer": "DEAD LINE", "clue": "Time limit", "swapped": "LEAD DINE", "clue2": "Go first at dinner"}, {"answer": "MAD HATTER", "clue": "Alice's tea-party host", "swapped": "HAD MATTER", "clue2": "Once mattered, briefly"}, {"answer": "POT HOLE", "clue": "Hazard in the road", "swapped": "HOT POLE", "clue2": "Warm flagstaff"}], [{"answer": "PARK LANE", "clue": "Pricey Monopoly square", "swapped": "LARK PANE", "clue2": "Window for a songbird"}, {"answer": "MAD COW", "clue": "Disease in the 1990s news", "swapped": "CAD MOW", "clue2": "Rotter cuts the lawn"}, {"answer": "TOP HAT", "clue": "Tall formal headwear", "swapped": "HOP TAT", "clue2": "Jump on junk"}], [{"answer": "FAN BELT", "clue": "Car engine part", "swapped": "BAN FELT", "clue2": "Outlaw a roofing material"}, {"answer": "BAKE SALE", "clue": "Charity cake stall", "swapped": "SAKE BALE", "clue2": "Rice wine in a hay bundle"}, {"answer": "DOOR BELL", "clue": "It rings when visitors arrive", "swapped": "BOOR DELL", "clue2": "Oaf's little valley"}]]};
+const GAMES = [
+  { id: 'typo', name: 'Typo Hunt', blurb: 'Three spelling slips are hiding in a news story. Tap them.' },
+  { id: 'places', name: 'Real or Fake Place', blurb: 'Three of these villages exist. Three were made up.' },
+  { id: 'route', name: 'Delivery Round', blurb: 'Plan the shortest post round. Scored against the best possible.' },
+  { id: 'match', name: 'Matchstick Words', blurb: 'Move one match to turn one word into another.' },
+  { id: 'spoon', name: 'Spoonerisms', blurb: 'Swap the first sounds. Solve three pairs of clues.' },
+];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let day = store.get('ptk-day', 0);
+const app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const doneKey = (g, d) => `ptk-done-${g}-${d}`;
+
+function glyph(id) {
+  const s = 'stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  return {
+    typo: `<svg width="34" height="34" viewBox="0 0 34 34"><path ${s} d="M5 24h24M9 18 15 6l6 12M11 14h8"/><path stroke="var(--bad)" stroke-width="3" fill="none" d="M4 29c4-3 6 3 10 0s6 3 10 0 4 2 6 0"/></svg>`,
+    places: `<svg width="34" height="34" viewBox="0 0 34 34"><path ${s} d="M17 30s10-9 10-16a10 10 0 0 0-20 0c0 7 10 16 10 16z"/><circle cx="17" cy="14" r="3.5" fill="currentColor"/></svg>`,
+    route: `<svg width="34" height="34" viewBox="0 0 34 34"><path ${s} d="M6 27 12 9l11 6 6 13z"/><circle cx="6" cy="27" r="3.5" fill="var(--bad)"/><circle cx="12" cy="9" r="3" fill="currentColor"/><circle cx="23" cy="15" r="3" fill="currentColor"/><circle cx="29" cy="28" r="3" fill="currentColor"/></svg>`,
+    match: `<svg width="34" height="34" viewBox="0 0 34 34"><path stroke="var(--match)" stroke-width="4" stroke-linecap="round" d="M9 6v22M25 6v22M12 17h10"/><circle cx="9" cy="6" r="3" fill="var(--match-head)"/><circle cx="25" cy="6" r="3" fill="var(--match-head)"/><circle cx="12" cy="17" r="3" fill="var(--match-head)"/></svg>`,
+    spoon: `<svg width="34" height="34" viewBox="0 0 34 34"><path ${s} d="M7 12c4-6 16-6 20 0M27 22c-4 6-16 6-20 0"/><path ${s} d="m24 8 3 4-4 2M10 26l-3-4 4-2"/></svg>`,
+  }[id];
+}
+
+function home() {
+  const done = GAMES.map(g => store.get(doneKey(g.id, day), null));
+  app.innerHTML = `
+    <header class="hero">
+      <p class="eyebrow">Prototype · five daily puzzles</p>
+      <h1>Puzzle <mark>Test</mark> Kitchen</h1>
+      <p class="muted">Five rough game ideas, each with seven days of puzzles. Play a day, then tell us which one you'd come back to tomorrow.</p>
+    </header>
+    <section aria-label="Choose a day" class="row" style="justify-content:space-between">
+      <span class="eyebrow">Puzzle day</span>
+      <div class="days">${[0,1,2,3,4,5,6].map(i => `<button class="day" aria-pressed="${i === day}" data-day="${i}" id="day-${i}">${i + 1}</button>`).join('')}</div>
+    </section>
+    <section class="games" aria-label="Games">
+      ${GAMES.map((g, i) => `<button class="tile" data-game="${g.id}" id="tile-${g.id}">
+        <span class="glyph">${glyph(g.id)}</span>
+        <span class="txt"><strong style="font-family:var(--display);font-size:1.2rem">${g.name}</strong><span>${g.blurb}</span></span>
+        <span class="status ${done[i] ? 'done' : ''}">${done[i] ? 'Done' : 'Play'}</span></button>`).join('')}
+    </section>
+    <p class="note">Each day's puzzles were checked by computer before this page was made. Your results stay on this device.</p>`;
+  app.querySelectorAll('.day').forEach(b => b.onclick = () => { day = +b.dataset.day; store.set('ptk-day', day); home(); });
+  app.querySelectorAll('.tile').forEach(b => b.onclick = () => open(b.dataset.game));
+}
+
+function frame(g, rules, meta = '') {
+  const game = GAMES.find(x => x.id === g);
+  app.innerHTML = `
+    <div class="bar"><button class="back" id="back">← All games</button><span class="title">${game.name}</span><span class="meta" id="meta">Day ${day + 1}${meta}</span></div>
+    <p class="rules">${rules}</p>
+    <div id="board"></div>
+    <div id="out"></div>`;
+  document.getElementById('back').onclick = home;
+  window.scrollTo(0, 0);
+  return document.getElementById('board');
+}
+
+function finish(g, headline, detail, share) {
+  store.set(doneKey(g, day), true);
+  const out = document.getElementById('out');
+  out.innerHTML = `<section class="result" aria-live="polite">
+    <h2>${headline}</h2>${detail ? `<p>${detail}</p>` : ''}
+    <div class="share-text" id="share-text">${esc(share)}</div>
+    <div class="row"><button class="btn primary" id="copy">Copy result</button><button class="btn" id="again">Back to all games</button></div>
+    <p class="toast" id="toast"></p></section>`;
+  document.getElementById('again').onclick = home;
+  document.getElementById('copy').onclick = () => {
+    const t = document.getElementById('toast');
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('share-text')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); t.textContent = 'Text selected. Copy it to share.'; };
+    try { navigator.clipboard.writeText(share).then(() => t.textContent = 'Copied. Paste it into a message.', fallback); } catch (e) { fallback(); }
+  };
+  out.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+
+function open(id) { ({ typo, places, route, match, spoon })[id](); }
+
+/* ---------- Typo Hunt ---------- */
+function typo() {
+  const p = DATA.typo[day];
+  const board = frame('typo', 'Tap the three misspelt words. You can make two wrong taps; the third ends the game.');
+  const toks = p.text.split(/(\s+)/);
+  board.innerHTML = `<div class="passage" id="passage">${toks.map((t, i) => /\s/.test(t) ? t : `<button class="w" data-i="${i}">${esc(t)}</button>`).join('')}</div>`;
+  const clean = t => t.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
+  let found = 0, misses = 0, trail = [], over = false; const start = Date.now();
+  const meta = document.getElementById('meta');
+  const showMeta = () => meta.textContent = `Day ${day + 1} · found ${found}/3 · wrong ${misses}/3`;
+  showMeta();
+  board.querySelectorAll('.w').forEach(b => b.onclick = () => {
+    if (over || b.classList.contains('hit') || b.classList.contains('miss')) return;
+    const w = clean(b.textContent);
+    if (p.errors[w]) { b.classList.add('hit'); b.insertAdjacentHTML('afterend', `<span class="fix">${esc(p.errors[w])}</span>`); found++; trail.push('🟩'); }
+    else { b.classList.add('miss'); misses++; trail.push('🟥'); }
+    showMeta();
+    if (found === 3 || misses === 3) {
+      over = true;
+      board.querySelectorAll('.w').forEach(x => { const c = clean(x.textContent); if (p.errors[c] && !x.classList.contains('hit')) { x.classList.add('reveal'); x.insertAdjacentHTML('afterend', `<span class="fix">${esc(p.errors[c])}</span>`); } });
+      const secs = Math.round((Date.now() - start) / 1000);
+      const win = found === 3;
+      finish('typo', win ? `All three found in ${secs}s` : `Found ${found} of 3`, win ? (misses ? `${misses} wrong tap${misses > 1 ? 's' : ''} on the way.` : 'Not a single wrong tap.') : 'The ones you missed are highlighted.',
+        `Typo Hunt · day ${day + 1}\n${trail.join('')}${win ? `  ${secs}s` : ''}`);
+    }
+  });
+}
+
+/* ---------- Real or Fake Place ---------- */
+function places() {
+  const list = DATA.places[day];
+  const board = frame('places', 'Three of these are real places in England. Three are invented. Mark each one, then check.');
+  const pick = list.map(() => null);
+  board.innerHTML = `<div class="places">${list.map((p, i) => `<div class="place" id="pl-${i}"><span class="nm">${esc(p.name)}</span>
+    <span class="choice"><button data-i="${i}" data-v="1" aria-pressed="false">Real</button><button data-i="${i}" data-v="0" aria-pressed="false">Fake</button></span>
+    <span class="verdict" id="v-${i}"></span></div>`).join('')}</div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="check" disabled>Check answers</button><span class="muted" id="left">6 to go</span></div>`;
+  const check = document.getElementById('check');
+  board.querySelectorAll('.choice button').forEach(b => b.onclick = () => {
+    if (check.dataset.done) return;
+    const i = +b.dataset.i; pick[i] = b.dataset.v === '1';
+    b.parentNode.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    const left = pick.filter(x => x === null).length;
+    document.getElementById('left').textContent = left ? `${left} to go` : 'Ready';
+    check.disabled = left > 0;
+  });
+  check.onclick = () => {
+    check.dataset.done = 1; check.disabled = true;
+    let score = 0; const row = [];
+    list.forEach((p, i) => {
+      const right = pick[i] === p.real; if (right) score++; row.push(right ? '🟩' : '🟥');
+      document.getElementById(`pl-${i}`).classList.add(right ? 'right' : 'wrong');
+      document.getElementById(`v-${i}`).innerHTML = `<span class="${right ? 'r' : 'x'}">${right ? 'Right.' : 'Wrong.'}</span> ` +
+        (p.real ? `Real: a place in ${esc(p.where)}.` : 'Made up for this game.');
+    });
+    finish('places', `${score} out of 6`, score === 6 ? 'A perfect eye for English village names.' : 'Real names come from Ordnance Survey’s open place-name data.', `Real or Fake Place · day ${day + 1}\n${row.join('')}  ${score}/6`);
+  };
+}
+
+/* ---------- Delivery Round ---------- */
+function route() {
+  const { cols, rows } = DATA.route; const d = DATA.route.days[day];
+  const board = frame('route', 'Start at the post office (the red square). Tap the houses in the order you would deliver, then you return to the post office. Shorter is better. Distances are straight lines.');
+  const S = 46, M = 30, W = (cols - 1) * S + 2 * M, H = (rows - 1) * S + 2 * M;
+  const xy = p => [M + p[0] * S, M + p[1] * S];
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  let path = [], over = false, firstScore = null;
+  board.innerHTML = `<div class="board"><svg id="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Map with a post office and ${d.houses.length} houses"></svg></div>
+    <div class="row" style="margin-top:12px"><button class="btn" id="undo">Undo</button><button class="btn" id="reset">Start again</button><span class="meta" id="len" style="font-family:var(--mono)"></span></div>`;
+  const svg = board.querySelector('#map');
+  function draw() {
+    let g = '';
+    for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) { const [a, b] = xy([x, y]); g += `<circle cx="${a}" cy="${b}" r="1.6" fill="var(--line)"/>`; }
+    const pts = [d.po, ...path.map(i => d.houses[i])]; if (over) pts.push(d.po);
+    if (pts.length > 1) g += `<polyline points="${pts.map(p => xy(p).join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${pts.map(p => xy(p).join(',')).join(' ')}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="5 5"/>`;
+    const [px, py] = xy(d.po);
+    g += `<rect x="${px - 13}" y="${py - 13}" width="26" height="26" rx="4" fill="var(--bad)"/><text x="${px}" y="${py + 5}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="#fff">PO</text>`;
+    d.houses.forEach((h, i) => {
+      const [hx, hy] = xy(h); const k = path.indexOf(i);
+      const fill = k >= 0 ? 'var(--ink)' : 'var(--surface)'; const tc = k >= 0 ? 'var(--bg)' : 'var(--ink)';
+      g += `<g data-h="${i}" style="cursor:pointer"><rect x="${hx - 22}" y="${hy - 22}" width="44" height="44" fill="transparent"/>
+        <path d="M${hx - 12} ${hy - 1} L${hx} ${hy - 13} L${hx + 12} ${hy - 1} V${hy + 12} H${hx - 12} Z" fill="${fill}" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+        ${k >= 0 ? `<text x="${hx}" y="${hy + 9}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12" fill="${tc}">${k + 1}</text>` : ''}</g>`;
+    });
+    svg.innerHTML = g;
+    svg.querySelectorAll('[data-h]').forEach(el => el.onclick = () => tap(+el.dataset.h));
+    const pts2 = [d.po, ...path.map(i => d.houses[i])]; let L = 0; for (let k = 1; k < pts2.length; k++) L += dist(pts2[k - 1], pts2[k]);
+    if (over) L += dist(pts2[pts2.length - 1], d.po);
+    document.getElementById('len').textContent = `${path.length}/${d.houses.length} houses · ${(L * 100).toFixed(0)} m`;
+    return L;
+  }
+  function tap(i) {
+    if (over || path.includes(i)) return;
+    path.push(i);
+    if (path.length === d.houses.length) {
+      over = true; const L = draw(); const pct = Math.round(L / d.best * 100);
+      const first = firstScore === null; if (first) firstScore = pct;
+      const sq = pct <= 100 ? '🟩' : pct <= 105 ? '🟨' : pct <= 115 ? '🟧' : '🟥';
+      if (first) finish('route', pct <= 100 ? 'Perfect round' : `${pct - 100}% longer than the best`, `Your round: ${(L * 100).toFixed(0)} m. Best possible: ${(d.best * 100).toFixed(0)} m. You can try again, but your first round is your score.`,
+        `Delivery Round · day ${day + 1}\n${sq} ${pct}% of the best route`);
+      else document.getElementById('len').textContent += ` · retry ${pct}% of best`;
+      return;
+    }
+    draw();
+  }
+  document.getElementById('undo').onclick = () => { if (!over) { path.pop(); draw(); } };
+  document.getElementById('reset').onclick = () => { path = []; over = false; draw(); };
+  draw();
+}
+
+/* ---------- Matchstick Words ---------- */
+const SEGS = { a: [8, 4, 44, 4], b: [48, 8, 48, 46], c: [48, 58, 48, 96], d: [8, 100, 44, 100], e: [4, 58, 4, 96], f: [4, 8, 4, 46], g: [8, 52, 44, 52] };
+function letterSVG(on, opts = {}) {
+  const { slots = false, held = null, idx = 0, scale = 1 } = opts;
+  let g = '';
+  for (const [k, [x1, y1, x2, y2]] of Object.entries(SEGS)) {
+    const has = on.has(k);
+    const isHeld = held && held.i === idx && held.s === k;
+    if (has && !isHeld) {
+      g += `<g data-l="${idx}" data-s="${k}" class="m"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="18"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--match)" stroke-width="6" stroke-linecap="round"/><circle cx="${x1}" cy="${y1}" r="4.5" fill="var(--match-head)"/></g>`;
+    } else if (slots) {
+      g += `<g data-l="${idx}" data-s="${k}" class="slot"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="18"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${held ? 'var(--accent)' : 'var(--slot)'}" stroke-width="${held ? 4 : 2}" stroke-dasharray="4 5" stroke-linecap="round"/></g>`;
+    }
+  }
+  return g;
+}
+function match() {
+  const [start, answer] = DATA.match.days[day]; const F = DATA.match.font;
+  const board = frame('match', `Move exactly one match to make a new everyday word. Tap a match to pick it up, then tap an empty slot to put it down. Three tries.`);
+  const shape = {}; for (const [k, v] of Object.entries(F)) shape[[...v].sort().join('')] = k;
+  let sets = [...start].map(c => new Set(F[c])), held = null, tries = 0, over = false; const trail = [];
+  const LW = 58, gap = 12, Wd = start.length * LW + (start.length - 1) * gap + 8;
+  board.innerHTML = `<div class="board"><svg id="mw" viewBox="-4 -4 ${Wd} 112" role="img" aria-label="The word ${start} made of matches"></svg></div>
+    <p class="hand" id="hand" style="margin-top:10px">Pick up a match.</p>
+    <div class="row"><button class="btn" id="putback" disabled>Put it back</button><span class="meta" id="tries" style="font-family:var(--mono)">Tries left: 3</span></div>
+    <details class="legend rules" style="margin-top:12px"><summary>Show the matchstick alphabet</summary><div class="legend-grid">${Object.entries(F).map(([k, v]) => `<figure><svg width="29" height="54" viewBox="-4 -4 60 112">${letterSVG(new Set(v))}</svg>${k}</figure>`).join('')}</div></details>`;
+  const svg = board.querySelector('#mw');
+  function draw() {
+    svg.innerHTML = sets.map((s, i) => `<g transform="translate(${i * (LW + gap)},0)">${letterSVG(s, { slots: true, held, idx: i })}</g>`).join('');
+    svg.querySelectorAll('.m').forEach(el => el.onclick = () => { if (over || held) return; held = { i: +el.dataset.l, s: el.dataset.s }; update(); });
+    svg.querySelectorAll('.slot').forEach(el => el.onclick = () => {
+      if (over || !held) return;
+      const i = +el.dataset.l, s = el.dataset.s;
+      if (i === held.i && s === held.s) { held = null; update(); return; }
+      if (sets[i].has(s) && !(i === held.i && s === held.s)) return;
+      const next = sets.map(x => new Set(x)); next[held.i].delete(held.s); next[i].add(s);
+      const word = next.map(x => shape[[...x].sort().join('')] || '?').join('');
+      held = null;
+      if (word === answer) { sets = next; over = true; trail.push('🟩'); update(`${start} → ${answer}. Solved.`);
+        finish('match', `${start} became ${answer}`, tries ? `Solved on try ${tries + 1}.` : 'First try.', `Matchstick Words · day ${day + 1}\n${trail.join('')}`); return; }
+      tries++; trail.push('🟥');
+      const msg = word.includes('?') ? 'That makes a shape that isn’t a letter.' : `${word} isn’t the word we’re after.`;
+      if (tries >= 3) { over = true; sets = [...answer].map(c => new Set(F[c])); update(`${msg} The answer was ${answer}.`);
+        finish('match', `The answer was ${answer}`, `${start} → ${answer}.`, `Matchstick Words · day ${day + 1}\n${trail.join('')}`); return; }
+      update(`${msg} The match went back. Try again.`);
+    });
+  }
+  function update(msg) {
+    document.getElementById('hand').textContent = msg || (held ? 'Holding a match. Tap a dashed slot to put it down.' : 'Pick up a match.');
+    document.getElementById('putback').disabled = !held;
+    document.getElementById('tries').textContent = over ? '' : `Tries left: ${3 - tries}`;
+    draw();
+  }
+  document.getElementById('putback').onclick = () => { held = null; update(); };
+  update();
+}
+
+/* ---------- Spoonerisms ---------- */
+function spoon() {
+  const set = DATA.spoon[day];
+  const board = frame('spoon', 'Each pair of clues points to a familiar phrase and its spoonerism, where the first sounds of two words swap over (CAT FLAP → FLAT CAP). Type the familiar phrase. Three guesses each.');
+  const state = set.map(() => ({ guesses: 0, done: false, ok: false }));
+  const lens = s => '(' + s.split(' ').map(w => w.length).join(', ') + ')';
+  board.innerHTML = set.map((q, i) => `<section class="spoon" id="sp-${i}">
+      <div class="clue"><span class="k">Familiar</span><span>${esc(q.clue)} <span class="dots">${lens(q.answer)}</span></span></div>
+      <div class="clue"><span class="k">Swapped</span><span>${esc(q.clue2)} <span class="dots">${lens(q.swapped)}</span></span></div>
+      <form class="row" id="f-${i}"><input id="in-${i}" autocomplete="off" autocapitalize="characters" aria-label="Answer ${i + 1}" placeholder="Familiar phrase"><button class="btn primary">Guess</button></form>
+      <p class="muted" id="msg-${i}">3 guesses left.</p></section>`).join('');
+  const norm = s => s.toUpperCase().replace(/[^A-Z]/g, '');
+  set.forEach((q, i) => {
+    document.getElementById(`f-${i}`).onsubmit = e => {
+      e.preventDefault(); const st = state[i]; if (st.done) return;
+      const v = norm(document.getElementById(`in-${i}`).value); if (!v) return;
+      st.guesses++;
+      const box = document.getElementById(`sp-${i}`), msg = document.getElementById(`msg-${i}`);
+      if (v === norm(q.answer)) { st.done = st.ok = true; box.classList.add('solved'); }
+      else if (st.guesses >= 3) { st.done = true; box.classList.add('failed'); }
+      if (st.done) {
+        document.getElementById(`f-${i}`).hidden = true;
+        msg.outerHTML = `<p class="pair">${esc(q.answer)}<span class="arrow">⇄</span>${esc(q.swapped)}</p>`;
+      } else {
+        const hint = q.answer.split(' ').map(w => w.slice(0, st.guesses) + '·'.repeat(Math.max(0, w.length - st.guesses))).join(' ');
+        msg.textContent = `Not quite. Hint: ${hint}. ${3 - st.guesses} left.`;
+      }
+      if (state.every(s => s.done)) {
+        const n = state.filter(s => s.ok).length;
+        const row = state.map(s => !s.ok ? '🟥' : s.guesses === 1 ? '🟩' : '🟨').join('');
+        finish('spoon', `${n} of 3 solved`, n === 3 ? 'Every swap spotted.' : 'Answers are shown above.', `Spoonerisms · day ${day + 1}\n${row}`);
+      }
+    };
+  });
+}
+
+home();
+</script>
